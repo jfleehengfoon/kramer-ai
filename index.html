@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kramer AI Assistant</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f1117; color: #e0e0e0; min-height: 100vh; }
+  
+  .header { background: #1a1d2e; padding: 16px 20px; border-bottom: 1px solid #2a2d3e; display: flex; align-items: center; gap: 12px; }
+  .header h1 { font-size: 18px; font-weight: 600; color: #fff; }
+  .header .badge { background: #e8312a; color: #fff; font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+  .model-badge { background: #1e3a5f; color: #60a5fa; font-size: 11px; padding: 2px 8px; border-radius: 10px; }
+
+  .setup { background: #1a1d2e; margin: 16px; border-radius: 12px; padding: 16px; border: 1px solid #2a2d3e; }
+  .setup h3 { font-size: 13px; color: #9ca3af; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .input-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
+  .input-row label { font-size: 13px; color: #9ca3af; width: 80px; flex-shrink: 0; }
+  .input-row input { flex: 1; background: #0f1117; border: 1px solid #2a2d3e; border-radius: 8px; padding: 8px 12px; color: #e0e0e0; font-size: 13px; }
+  .input-row input:focus { outline: none; border-color: #e8312a; }
+  
+  .kb-row { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
+  .kb-status { font-size: 12px; color: #9ca3af; }
+  .kb-status.loaded { color: #34d399; }
+  
+  .btn { background: #e8312a; color: #fff; border: none; border-radius: 8px; padding: 8px 16px; font-size: 13px; cursor: pointer; font-weight: 500; }
+  .btn:hover { background: #c62020; }
+  .btn-outline { background: transparent; border: 1px solid #2a2d3e; color: #9ca3af; }
+  .btn-outline:hover { border-color: #e8312a; color: #e8312a; background: transparent; }
+
+  .chat { margin: 0 16px; height: calc(100vh - 320px); overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding-bottom: 8px; }
+  
+  .msg { display: flex; gap: 10px; animation: fadeIn 0.3s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  
+  .msg.user { flex-direction: row-reverse; }
+  .avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+  .avatar.ai { background: #e8312a; }
+  .avatar.user { background: #1e3a5f; }
+  
+  .bubble { max-width: 80%; background: #1a1d2e; border-radius: 12px; padding: 10px 14px; font-size: 14px; line-height: 1.6; border: 1px solid #2a2d3e; }
+  .msg.user .bubble { background: #1e3a5f; border-color: #2a4a7f; }
+  
+  .source-tag { font-size: 11px; margin-top: 6px; padding: 2px 8px; border-radius: 8px; display: inline-block; }
+  .source-kb { background: #1e3a5f; color: #60a5fa; }
+  .source-web { background: #1a3a2a; color: #34d399; }
+
+  .input-area { background: #1a1d2e; margin: 12px 16px 16px; border-radius: 12px; padding: 12px; border: 1px solid #2a2d3e; display: flex; gap: 8px; align-items: flex-end; }
+  .input-area textarea { flex: 1; background: transparent; border: none; color: #e0e0e0; font-size: 14px; resize: none; outline: none; max-height: 100px; font-family: inherit; }
+  
+  .mic-btn { width: 44px; height: 44px; border-radius: 50%; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; transition: all 0.2s; background: #e8312a; }
+  .mic-btn.listening { background: #ff4444; animation: pulse 1s infinite; }
+  .mic-btn.speaking { background: #34d399; }
+  @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+  
+  .send-btn { width: 44px; height: 44px; border-radius: 50%; border: none; cursor: pointer; background: #2a2d3e; color: #9ca3af; font-size: 18px; display: flex; align-items: center; justify-content: center; }
+  .send-btn:hover { background: #e8312a; color: #fff; }
+
+  .status-bar { text-align: center; font-size: 12px; color: #9ca3af; padding: 4px; }
+  .status-bar.active { color: #34d399; }
+  .status-bar.error { color: #f87171; }
+
+  .tts-toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #9ca3af; cursor: pointer; }
+  .tts-toggle input { cursor: pointer; }
+
+  .thinking { display: flex; gap: 4px; align-items: center; padding: 4px 0; }
+  .thinking span { width: 6px; height: 6px; background: #9ca3af; border-radius: 50%; animation: bounce 1.2s infinite; }
+  .thinking span:nth-child(2) { animation-delay: 0.2s; }
+  .thinking span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce { 0%,60%,100% { transform: translateY(0); } 30% { transform: translateY(-6px); } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div style="font-size:22px">🎙️</div>
+  <h1>Kramer AI Assistant</h1>
+  <span class="badge">LIVE</span>
+  <span class="model-badge">⚡ Haiku</span>
+  <div style="margin-left:auto">
+    <label class="tts-toggle">
+      <input type="checkbox" id="ttsToggle" checked> 🔊 Earpiece
+    </label>
+  </div>
+</div>
+
+<div class="setup">
+  <h3>⚙️ Setup</h3>
+  <div class="input-row">
+    <label>Claude Key</label>
+    <input type="password" id="claudeKey" placeholder="sk-ant-..." />
+  </div>
+  <div class="input-row">
+    <label>SerpAPI Key</label>
+    <input type="password" id="serpKey" placeholder="Optional — for web search fallback" />
+  </div>
+  <div class="kb-row">
+    <button class="btn btn-outline" onclick="document.getElementById('kbFile').click()">📁 Upload KB</button>
+    <input type="file" id="kbFile" accept=".txt" style="display:none" onchange="loadKB(this)">
+    <span class="kb-status" id="kbStatus">No KB loaded</span>
+  </div>
+</div>
+
+<div class="status-bar" id="statusBar">Ready — upload KB and enter API key to start</div>
+
+<div class="chat" id="chat">
+  <div class="msg">
+    <div class="avatar ai">K</div>
+    <div class="bubble">Hi! I'm your Kramer AI assistant. Upload the knowledge base and enter your API key to get started. Ask me anything about Kramer products! 🎯</div>
+  </div>
+</div>
+
+<div class="input-area">
+  <textarea id="userInput" placeholder="Ask about Kramer products..." rows="1" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+  <button class="mic-btn" id="micBtn" onclick="toggleMic()" title="Voice input">🎤</button>
+  <button class="send-btn" onclick="sendMessage()" title="Send">➤</button>
+</div>
+
+<script>
+let knowledgeBase = '';
+let isListening = false;
+let recognition = null;
+let isSpeaking = false;
+let currentUtterance = null;
+
+// ── Load KB ──────────────────────────────────────────────
+function loadKB(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    knowledgeBase = e.target.result;
+    const lines = knowledgeBase.split('\n').length;
+    document.getElementById('kbStatus').textContent = `✅ Loaded: ${file.name} (${lines} lines)`;
+    document.getElementById('kbStatus').className = 'kb-status loaded';
+    setStatus('Knowledge base loaded! Ready to assist.', 'active');
+  };
+  reader.readAsText(file);
+}
+
+// ── Status ────────────────────────────────────────────────
+function setStatus(msg, type='') {
+  const el = document.getElementById('statusBar');
+  el.textContent = msg;
+  el.className = 'status-bar ' + type;
+}
+
+// ── Auto resize textarea ──────────────────────────────────
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 100) + 'px';
+}
+
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+}
+
+// ── Add message to chat ───────────────────────────────────
+function addMsg(role, text, source='') {
+  const chat = document.getElementById('chat');
+  const div = document.createElement('div');
+  div.className = 'msg ' + (role === 'user' ? 'user' : '');
+  
+  let sourceTag = '';
+  if (source === 'kb') sourceTag = '<div class="source-tag source-kb">📚 Knowledge Base</div>';
+  if (source === 'web') sourceTag = '<div class="source-tag source-web">🌐 Web Search</div>';
+
+  div.innerHTML = `
+    <div class="avatar ${role === 'user' ? 'user' : 'ai'}">${role === 'user' ? '👤' : 'K'}</div>
+    <div class="bubble">${text.replace(/\n/g,'<br>')}${sourceTag}</div>`;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+  return div;
+}
+
+function addThinking() {
+  const chat = document.getElementById('chat');
+  const div = document.createElement('div');
+  div.className = 'msg';
+  div.id = 'thinking';
+  div.innerHTML = `<div class="avatar ai">K</div><div class="bubble"><div class="thinking"><span></span><span></span><span></span></div></div>`;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function removeThinking() {
+  const el = document.getElementById('thinking');
+  if (el) el.remove();
+}
+
+// ── TTS Earpiece ──────────────────────────────────────────
+function speak(text) {
+  if (!document.getElementById('ttsToggle').checked) return;
+  
+  // Stop any current speech
+  window.speechSynthesis.cancel();
+  
+  // Clean text for speech
+  const clean = text
+    .replace(/[#*`_~]/g, '')
+    .replace(/https?:\/\/\S+/g, '')
+    .replace(/\n+/g, '. ')
+    .substring(0, 500); // limit length for speed
+
+  const utter = new SpeechSynthesisUtterance(clean);
+  utter.lang = 'en-US';
+  utter.rate = 1.1;
+  utter.pitch = 1.0;
+
+  // Pick best voice
+  const voices = window.speechSynthesis.getVoices();
+  const preferred = voices.find(v => v.name.includes('Neural') || v.name.includes('Natural') || (v.lang === 'en-US' && v.localService));
+  if (preferred) utter.voice = preferred;
+
+  utter.onstart = () => {
+    isSpeaking = true;
+    document.getElementById('micBtn').className = 'mic-btn speaking';
+    document.getElementById('micBtn').textContent = '🔊';
+    setStatus('Speaking...', 'active');
+  };
+  utter.onend = () => {
+    isSpeaking = false;
+    document.getElementById('micBtn').className = 'mic-btn';
+    document.getElementById('micBtn').textContent = '🎤';
+    setStatus('Ready', '');
+  };
+  utter.onerror = () => {
+    isSpeaking = false;
+    document.getElementById('micBtn').className = 'mic-btn';
+    document.getElementById('micBtn').textContent = '🎤';
+  };
+
+  // Chrome bug fix
+  currentUtterance = utter;
+  window.speechSynthesis.speak(utter);
+  
+  // Chrome sometimes pauses — keep it going
+  const resumeTimer = setInterval(() => {
+    if (!window.speechSynthesis.speaking) { clearInterval(resumeTimer); return; }
+    window.speechSynthesis.pause();
+    window.speechSynthesis.resume();
+  }, 5000);
+}
+
+// Preload voices
+window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+
+// ── Search KB ─────────────────────────────────────────────
+function searchKB(query) {
+  if (!knowledgeBase) return null;
+  const q = query.toLowerCase();
+  const lines = knowledgeBase.split('\n');
+  const keywords = q.split(' ').filter(w => w.length > 2);
+  
+  let scored = [];
+  let block = [];
+  let blockScore = 0;
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const lower = line.toLowerCase();
+    
+    if (line.startsWith('===') || line.startsWith('---') || i === lines.length - 1) {
+      if (block.length > 0 && blockScore > 0) {
+        scored.push({ text: block.join('\n'), score: blockScore });
+      }
+      block = [line];
+      blockScore = 0;
+    } else {
+      block.push(line);
+      keywords.forEach(kw => { if (lower.includes(kw)) blockScore += 1; });
+    }
+  }
+  
+  scored.sort((a,b) => b.score - a.score);
+  
+  if (scored.length > 0 && scored[0].score >= 2) {
+    return scored.slice(0, 3).map(s => s.text).join('\n\n');
+  }
+  return null;
+}
+
+// ── Web Search via SerpAPI ────────────────────────────────
+async function webSearch(query) {
+  const serpKey = document.getElementById('serpKey').value.trim();
+  if (!serpKey) return null;
+  
+  try {
+    const q = encodeURIComponent('site:kramerav.com ' + query);
+    const url = `https://serpapi.com/search.json?q=${q}&api_key=${serpKey}&num=3`;
+    const res = await fetch(url);
+    const data = await res.json();
+    
+    if (data.organic_results && data.organic_results.length > 0) {
+      return data.organic_results.slice(0,3).map(r => 
+        `${r.title}\n${r.snippet}\nURL: ${r.link}`
+      ).join('\n\n');
+    }
+  } catch(e) {}
+  return null;
+}
+
+// ── Main Send ─────────────────────────────────────────────
+async function sendMessage() {
+  const input = document.getElementById('userInput');
+  const query = input.value.trim();
+  if (!query) return;
+  
+  const claudeKey = document.getElementById('claudeKey').value.trim();
+  if (!claudeKey) { setStatus('⚠️ Please enter Claude API key', 'error'); return; }
+
+  input.value = '';
+  input.style.height = 'auto';
+  addMsg('user', query);
+  addThinking();
+  setStatus('Thinking...', 'active');
+
+  // 1. Search KB
+  let context = '';
+  let source = 'kb';
+  const kbResult = searchKB(query);
+  
+  if (kbResult) {
+    context = `KNOWLEDGE BASE:\n${kbResult}`;
+    source = 'kb';
+  } else {
+    // 2. Fallback to web search
+    setStatus('Searching web...', 'active');
+    const webResult = await webSearch(query);
+    if (webResult) {
+      context = `WEB SEARCH RESULTS:\n${webResult}`;
+      source = 'web';
+    }
+  }
+
+  // 3. Call Claude Haiku
+  const systemPrompt = `You are a Kramer AV product expert assistant helping a sales engineer in real-time during customer meetings.
+Be concise and direct. Answer in 2-4 sentences max. Focus on specs, compatibility, and use cases.
+${context ? 'Use the provided context to answer accurately.' : 'Answer based on your knowledge of Kramer products.'}`;
+
+  const userMsg = context 
+    ? `Context:\n${context}\n\nQuestion: ${query}`
+    : query;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': claudeKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5',
+        max_tokens: 300,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userMsg }]
+      })
+    });
+
+    const data = await res.json();
+    removeThinking();
+
+    if (data.content && data.content[0]) {
+      const answer = data.content[0].text;
+      addMsg('ai', answer, source);
+      speak(answer);
+      setStatus('Ready', '');
+    } else {
+      const errMsg = data.error?.message || 'Unknown error';
+      addMsg('ai', '⚠️ Error: ' + errMsg);
+      setStatus('Error: ' + errMsg, 'error');
+    }
+  } catch(e) {
+    removeThinking();
+    addMsg('ai', '⚠️ Network error. Check your API key and connection.');
+    setStatus('Network error', 'error');
+  }
+}
+
+// ── Voice Input ───────────────────────────────────────────
+function toggleMic() {
+  if (isSpeaking) {
+    window.speechSynthesis.cancel();
+    isSpeaking = false;
+    document.getElementById('micBtn').className = 'mic-btn';
+    document.getElementById('micBtn').textContent = '🎤';
+    return;
+  }
+  
+  if (isListening) {
+    stopMic();
+  } else {
+    startMic();
+  }
+}
+
+function startMic() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) { setStatus('⚠️ Speech recognition not supported', 'error'); return; }
+  
+  recognition = new SpeechRecognition();
+  recognition.lang = 'en-US';
+  recognition.continuous = false;
+  recognition.interimResults = true;
+  
+  recognition.onstart = () => {
+    isListening = true;
+    document.getElementById('micBtn').className = 'mic-btn listening';
+    document.getElementById('micBtn').textContent = '⏹';
+    setStatus('🎤 Listening...', 'active');
+  };
+  
+  recognition.onresult = e => {
+    const transcript = Array.from(e.results).map(r => r[0].transcript).join('');
+    document.getElementById('userInput').value = transcript;
+    if (e.results[e.results.length-1].isFinal) {
+      stopMic();
+      setTimeout(() => sendMessage(), 300);
+    }
+  };
+  
+  recognition.onerror = e => {
+    stopMic();
+    setStatus('Mic error: ' + e.error, 'error');
+  };
+  
+  recognition.onend = () => stopMic();
+  recognition.start();
+}
+
+function stopMic() {
+  isListening = false;
+  document.getElementById('micBtn').className = 'mic-btn';
+  document.getElementById('micBtn').textContent = '🎤';
+  if (recognition) { try { recognition.stop(); } catch(e){} }
+  setStatus('Ready', '');
+}
+</script>
+</body>
+</html>
